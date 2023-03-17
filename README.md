@@ -1,2 +1,2 @@
 # little-learner
-Going through exercises of The Little Learner
+Practicing deep-learning with the crew
