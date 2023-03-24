@@ -8,6 +8,7 @@
 (declare-hyper revs)
 (declare-hyper alpha)
 (declare-hyper batch-size)
+(declare-hyper mu)
 
 ;; data-set for a simple, linear line in 2d
 (define line-xs
@@ -75,15 +76,6 @@
       [(zero? revs) theta]
       [else (revise f (sub1 revs) (f theta))])))
 
-(define gradient-descent
-  (λ (obj-fun theta)
-    (let ([f (λ (big-theta)
-               (map
-                (λ (p g) (- p (* alpha g)))
-                big-theta
-                (gradient-of obj-fun big-theta)))])
-      (revise f revs theta))))
-
 ;; data set for a parabola in the 2D plane
 (define quad-xs (tensor -1.0 0.0 1.0 2.0 3.0))
 (define quad-ys (tensor 2.55 2.1 4.35 10.2 18.25))
@@ -115,10 +107,6 @@
     (λ (theta)
       (+ (dot-product (ref theta 0) t) (ref theta 1)))))
 
-;; =============================
-;; CURRENT CHAPTER
-;; =============================
-
 ;; samples : Integer, Integer -> List<Integer>
 ;; Creates a list of s elements in the range of 0 to n.
 (define samples
@@ -132,10 +120,6 @@
       [else
        (sampled n (sub1 i) (cons (random n) a))])))
 
-(samples 20 3)
-
-(trefs (tensor 5.0 2.8 4.2 2.3 7.4 1.7 8.1) (list 6 0 3 1))
-
 ;; when an objective function uses a fixed batch size each iteration, it's stochastic gradient descent
 (define sampling-obj
   (λ (expectant xs ys)
@@ -144,18 +128,72 @@
         (let ([b (samples n batch-size)])
           ((expectant (trefs xs b) (trefs ys b)) theta))))))
 
-(with-hypers
-    ([revs 1000]
-     [alpha 0.01]
-     [batch-size 4])
-  (gradient-descent
-   (sampling-obj (l2-loss line) line-xs line-ys)
-   (list 0.0 0.0)))
+;; naked-i : Tensor<*> -> Tensor<*>
+(define naked-i
+  (λ (p) (let ([P p]) P)))
 
+;; naked-d : Tensor<*> -> Tensor<*>
+(define naked-d
+  (λ (P) (let ([p P]) p)))
+
+;; naked-u : Tensor<*>, Scalar -> Tensor<*>
+(define naked-u
+  (λ (P g) (- P (* alpha g))))
+
+;; lonely-i : Tensor<*> -> List<Tensor<*>>
+(define lonely-i
+  (λ (p) (list p)))
+
+;; lonely-d : List<Tensor<*>> -> Tensor<*>
+(define lonely-d
+  (λ (p) (ref p 0)))
+
+;; lonely-u : List<Tensor<*>>, Tensor<*> -> List<Tensor<*>>
+(define lonely-u
+  (λ (P g) (list (- (ref P 0) (* alpha g)))))
+
+(define gradient-descent
+  (λ (inflate deflate update)
+    (λ (obj theta)
+      (let ([f (λ (big-theta)
+                 (map update big-theta (gradient-of obj (map deflate big-theta))))])
+        (map deflate (revise f revs (map inflate theta)))))))
+
+(define lonely-gradient-descent
+  (gradient-descent lonely-i lonely-d lonely-u))
+
+(define naked-gradient-descent
+  (gradient-descent naked-i naked-d naked-u))
+
+;; =============================
+;; CURRENT CHAPTER
+;; =============================
+
+(define velocity-i
+  (λ (p) (list p (zeroes p))))
+
+(define velocity-d
+  (λ (P) (ref P 0)))
+
+(define velocity-u
+  (λ (P g)
+    (let ([v (- (* mu (ref P 1)) (* alpha g))])
+      (list (+ (ref P 0) v) v))))
+
+(define velocity-gradient-descent
+  (gradient-descent velocity-i velocity-d velocity-u))
+
+(define try-plane
+  (λ (a-gradient-descent a-revs)
+    (with-hypers
+        ([revs a-revs]
+         [alpha 0.001]
+         [batch-size 4])
+      (a-gradient-descent (sampling-obj (l2-loss plane) plane-xs plane-ys)
+                          (list (tensor 0.0 0.0) 0.0)))))
+
+(try-plane lonely-gradient-descent 15000)
+(try-plane naked-gradient-descent 15000)
 (with-hypers
-    ([revs 15000]
-     [alpha 0.001]
-     [batch-size 4])
-  (gradient-descent
-   (sampling-obj (l2-loss plane) plane-xs plane-ys)
-   (list (tensor 0.0 0.0) 0.0)))
+    ([mu 0.9])
+  (try-plane velocity-gradient-descent 5000))
