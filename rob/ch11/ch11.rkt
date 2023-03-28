@@ -257,3 +257,36 @@
 ;; ===============================
 ;; CURRENT CHAPTER
 ;; ===============================
+
+(define dot-product-2-1
+  (λ (w t)
+    (sum (*-2-1 w t))))
+
+(dot-product-2-1 (tensor (tensor 2.0 1.0 3.1) (tensor 3.7 4.0 6.1)) (tensor 1.3 0.4 3.3))
+
+;; linear : Vector<N> -> (Matrix<M,N>, Vector<M>) -> Vector<M>
+(define linear
+  (λ (t)
+    (λ (theta)
+      (+ (dot-product-2-1 (ref theta 0) t) (ref theta 1)))))
+
+;; relu : Vector<N> -> (Matrix<M,N>, Vector<M>) -> Vector<M>
+(define relu
+  (λ (t)
+    (λ (theta)
+      (rectify ((linear t) theta)))))
+
+(refr (list 2 4 8 9 6 3 7) 4)
+
+;; k-relu : Natural -> Vector<N> -> List<(Matrix<M,N>, Vector<N>)> -> Vector<N>
+(define k-relu
+  (λ (k)
+    (λ (t)
+      (λ (theta)
+        (cond
+          [(zero? k) t]
+          [else (((k-relu
+                   (sub1 k))
+                  ((relu t) theta))
+                 (refr theta 2))])))))
+                   
